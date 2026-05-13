@@ -1,0 +1,35 @@
+{
+  "name": "create-file-job",
+  "description": "Creates a file on the VM",
+  "variables": {
+    "fileName": "output.txt",
+    "fileContent": "Hello World! This file was created by VMJob API."
+  },
+  "stages": [
+    {
+      "name": "create-file",
+      "displayName": "Create File on VM",
+      "steps": [
+        {
+          "task": "PowerShell",
+          "displayName": "Create directory and file",
+          "inputs": {
+            "script": [
+              "Write-Host 'Creating file on VM...'",
+              "$dir = [System.IO.Path]::Combine('C:', 'vmjob-results')",
+              "[System.IO.Directory]::CreateDirectory($dir) | Out-Null",
+              "Write-Host \"Directory created: $dir\"",
+              "",
+              "$filePath = [System.IO.Path]::Combine($dir, '$(variables.fileName)')",
+              "'$(variables.fileContent)' | Out-File -FilePath $filePath -Force",
+              "Write-Host \"File created: $filePath\"",
+              "",
+              "Write-Host 'File contents:'",
+              "Get-Content $filePath"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

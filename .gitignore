@@ -1,0 +1,66 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+*.dll
+*.exe
+*.pdb
+*.cache
+
+# NuGet
+packages/
+*.nupkg
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.sln.iml
+
+# Test results / coverage
+TestResults/
+*.trx
+*.coverage
+coverage*.xml
+
+# Logs and temp
+*.log
+*.tmp
+*.temp
+job-completion-log-*.txt
+testresult.csv
+
+# Terraform - state and secrets
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+tfplan
+*.tfplan
+crash.log
+
+# RDP / connection files
+*.rdp
+
+# Azure publish settings
+*.PublishSettings
+
+# Kubernetes secrets dumped locally
+kubeconfig*
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Editors
+.vscode/
+*.swp
+*~

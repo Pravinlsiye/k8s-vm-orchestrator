@@ -1,0 +1,27 @@
+[
+  { "name": "hello-1", "command": "Write-Host \"Hello 1 from $env:COMPUTERNAME\"" },
+  { "name": "hello-2", "command": "Write-Host \"Hello 2 from $env:COMPUTERNAME\"" },
+  { "name": "uptime",  "command": "(Get-Uptime).ToString()" },
+  { "name": "disk",    "command": "Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize | Out-String" },
+  {
+    "name": "create-file",
+    "stages": [
+      {
+        "name": "create",
+        "steps": [
+          {
+            "task": "PowerShell",
+            "inputs": {
+              "script": [
+                "$dir = 'C:\\vmjob-results'",
+                "New-Item -ItemType Directory -Path $dir -Force | Out-Null",
+                "\"hello at $(Get-Date)\" | Out-File \"$dir\\hello.txt\" -Force",
+                "Get-Content \"$dir\\hello.txt\""
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

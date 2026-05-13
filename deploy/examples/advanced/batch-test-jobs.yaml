@@ -1,0 +1,103 @@
+---
+# Example: Multiple parallel test jobs
+# Submit with: kubectl apply -f batch-test-jobs.yaml
+
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: integration-test-1
+  labels:
+    suite: integration
+    batch: batch-1
+spec:
+  vmSelector:
+    os: windows
+  command: "powershell.exe"
+  args:
+    - "-Command"
+    - "Write-Host 'Integration Test 1'; Start-Sleep 10; Write-Host 'PASSED'; exit 0"
+  timeout: "15m"
+  priority: 40
+
+---
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: integration-test-2
+  labels:
+    suite: integration
+    batch: batch-1
+spec:
+  vmSelector:
+    os: windows
+  command: "powershell.exe"
+  args:
+    - "-Command"
+    - "Write-Host 'Integration Test 2'; Start-Sleep 10; Write-Host 'PASSED'; exit 0"
+  timeout: "15m"
+  priority: 40
+
+---
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: performance-test-1
+  labels:
+    suite: performance
+    batch: batch-1
+spec:
+  vmSelector:
+    os: windows
+  command: "powershell.exe"
+  args:
+    - "-Command"
+    - |
+      Write-Host 'Performance Test Starting...'
+      $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+      Start-Sleep -Seconds 20
+      $stopwatch.Stop()
+      Write-Host "Execution time: $($stopwatch.ElapsedMilliseconds)ms"
+      Write-Host 'Performance Test PASSED'
+      exit 0
+  timeout: "30m"
+  priority: 30
+
+---
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: smoke-test-1
+  labels:
+    suite: smoke
+    batch: batch-1
+spec:
+  vmSelector:
+    os: windows
+  command: "powershell.exe"
+  args:
+    - "-Command"
+    - "Write-Host 'Smoke Test'; Test-Path C:\\; Write-Host 'PASSED'; exit 0"
+  timeout: "5m"
+  priority: 60
+
+---
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: high-priority-test
+  labels:
+    suite: critical
+    batch: batch-1
+spec:
+  vmSelector:
+    os: windows
+  command: "powershell.exe"
+  args:
+    - "-Command"
+    - "Write-Host 'High Priority Critical Test'; Start-Sleep 5; Write-Host 'PASSED'; exit 0"
+  timeout: "10m"
+  priority: 90
+  retryPolicy:
+    maxRetries: 5
+    backoffStrategy: exponential
+

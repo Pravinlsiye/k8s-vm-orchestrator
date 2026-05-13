@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmjob-api
+  namespace: default
+  labels:
+    app: vmjob-api
+spec:
+  selector:
+    app: vmjob-api
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  type: LoadBalancer  # Change to ClusterIP if only internal access needed
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmjob-api
+  namespace: default
+  labels:
+    app: vmjob-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vmjob-api
+  template:
+    metadata:
+      labels:
+        app: vmjob-api
+    spec:
+      serviceAccountName: vmjob-controller  # Reuse existing SA with permissions
+      imagePullSecrets:
+        - name: acr-secret
+      containers:
+        - name: api
+          image: <YOUR_ACR_NAME>.azurecr.io/vmjob-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

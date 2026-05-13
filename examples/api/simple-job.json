@@ -1,0 +1,4 @@
+{
+  "name": "hello-vm",
+  "command": "Write-Host \"Hello from $env:COMPUTERNAME at $(Get-Date)\""
+}

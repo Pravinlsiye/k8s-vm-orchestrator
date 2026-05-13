@@ -1,0 +1,32 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored; never commit secrets.
+
+# Azure Configuration
+subscription_id     = "<YOUR_AZURE_SUBSCRIPTION_ID>"
+resource_group_name = "k8s-vmjob-workers"
+location            = "East US"
+
+# VM Configuration
+vm_count       = 2
+vm_size        = "Standard_B2s"
+admin_username = "<VM_ADMIN_USERNAME>"
+admin_password = "<VM_ADMIN_PASSWORD>"
+
+# Network Configuration
+vnet_address_space    = "10.1.0.0/16"
+subnet_address_prefix = "10.1.1.0/24"
+
+# Restrict control plane access. Get your IP: https://whatismyip.com
+control_plane_ip = "<YOUR_PUBLIC_IP>/32"
+
+# Options
+enable_public_ips = true
+disk_size_gb      = 128
+windows_version   = "2022-datacenter-azure-edition"
+
+tags = {
+  Environment = "K8sVMJob"
+  ManagedBy   = "Terraform"
+  Purpose     = "VM-Worker-Nodes"
+  Project     = "k8s-vm-orchestrator"
+}

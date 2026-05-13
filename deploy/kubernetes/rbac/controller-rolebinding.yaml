@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vmjob-controller-rolebinding
+  labels:
+    app: vmjob-controller
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vmjob-controller-role
+subjects:
+  - kind: ServiceAccount
+    name: vmjob-controller
+    namespace: default
+

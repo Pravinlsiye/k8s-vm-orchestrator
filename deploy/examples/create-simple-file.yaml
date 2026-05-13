@@ -1,0 +1,23 @@
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: create-simple-file
+  namespace: default
+spec:
+  vmSelector:
+    os: windows
+  command: powershell.exe
+  args:
+    - "-Command"
+    - |
+      $dir = 'C:\vmjob-results'
+      if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force }
+      $file = "$dir\test_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+      "VMJob Test File`nCreated: $(Get-Date)`nHost: $env:COMPUTERNAME`nUser: $env:USERNAME" | Out-File -FilePath $file -Encoding UTF8
+      Write-Host "File created: $file"
+      Write-Host "File size: $((Get-Item $file).Length) bytes"
+      Write-Host "File contents:"
+      Get-Content $file
+  workingDir: "C:\\"
+  timeout: "2m"
+  priority: 100

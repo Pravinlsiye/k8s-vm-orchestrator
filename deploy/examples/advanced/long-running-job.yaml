@@ -1,0 +1,97 @@
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: long-running-test
+  labels:
+    type: endurance
+    duration: long
+spec:
+  vmSelector:
+    os: windows
+    tags:
+      arch: "amd64"
+  
+  command: "powershell.exe"
+  
+  args:
+    - "-ExecutionPolicy"
+    - "Bypass"
+    - "-Command"
+    - |
+      $duration = 300  # 5 minutes
+      $interval = 30   # Status update every 30 seconds
+      
+      Write-Host "Starting long-running test (${duration}s duration)"
+      Write-Host "VM: $env:COMPUTERNAME"
+      Write-Host "Started at: $(Get-Date)"
+      Write-Host ""
+      
+      $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+      $checkpoints = @()
+      
+      while ($stopwatch.Elapsed.TotalSeconds -lt $duration) {
+          $elapsed = [math]::Round($stopwatch.Elapsed.TotalSeconds, 2)
+          $remaining = $duration - $elapsed
+          $progress = [math]::Round(($elapsed / $duration) * 100, 1)
+          
+          Write-Host "[$elapsed/$duration s] Progress: $progress% | Remaining: ${remaining}s"
+          
+          # Simulate work
+          $checkpoint = @{
+              Time = Get-Date
+              Elapsed = $elapsed
+              Memory = [math]::Round((Get-Process -Id $PID).WorkingSet64 / 1MB, 2)
+              CPU = (Get-Process -Id $PID).CPU
+          }
+          $checkpoints += $checkpoint
+          
+          Start-Sleep -Seconds $interval
+      }
+      
+      $stopwatch.Stop()
+      
+      Write-Host ""
+      Write-Host "Test completed!"
+      Write-Host "Total duration: $($stopwatch.Elapsed.TotalSeconds)s"
+      Write-Host "Checkpoints recorded: $($checkpoints.Count)"
+      
+      # Save results
+      $resultDir = 'C:\vmjob-results'
+      if (-not (Test-Path $resultDir)) {
+          New-Item -ItemType Directory -Force -Path $resultDir | Out-Null
+      }
+      
+      $resultFile = Join-Path $resultDir 'long-running-results.json'
+      $results = @{
+          TestName = 'long-running-test'
+          VM = $env:COMPUTERNAME
+          StartTime = (Get-Date).AddSeconds(-$stopwatch.Elapsed.TotalSeconds).ToString('o')
+          EndTime = (Get-Date).ToString('o')
+          Duration = $stopwatch.Elapsed.TotalSeconds
+          Checkpoints = $checkpoints
+          Status = 'PASSED'
+      } | ConvertTo-Json -Depth 3
+      
+      $results | Out-File -FilePath $resultFile -Encoding utf8
+      
+      Write-Host "Results saved to: $resultFile"
+      Write-Host "RESULT_PATH:$resultFile"
+      
+      exit 0
+  
+  workingDir: "C:\\vmjob-results"
+  timeout: "10m"
+  
+  retryPolicy:
+    maxRetries: 2
+    backoffStrategy: fixed
+    initialBackoff: "30s"
+  
+  env:
+    - name: TEST_DURATION
+      value: "300"
+    - name: TEST_TYPE
+      value: "endurance"
+  
+  priority: 25
+

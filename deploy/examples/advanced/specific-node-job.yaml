@@ -1,0 +1,70 @@
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: specific-node-test
+  labels:
+    type: node-specific
+spec:
+  # Target a specific VM node by name
+  vmSelector:
+    os: windows
+    # Uncomment and set the node name to target a specific VM
+    # nodeName: "k8s-vmjob-workers-vm-1"
+  
+  command: "powershell.exe"
+  
+  args:
+    - "-Command"
+    - |
+      Write-Host "====================================="
+      Write-Host "Node-Specific Test Execution"
+      Write-Host "====================================="
+      Write-Host ""
+      Write-Host "Hostname: $env:COMPUTERNAME"
+      Write-Host "User: $env:USERNAME"
+      Write-Host "Time: $(Get-Date)"
+      Write-Host ""
+      
+      # Display system information
+      Write-Host "System Information:"
+      Write-Host "-".PadRight(40, "-")
+      $os = Get-CimInstance Win32_OperatingSystem
+      Write-Host "OS: $($os.Caption)"
+      Write-Host "Version: $($os.Version)"
+      Write-Host "Build: $($os.BuildNumber)"
+      
+      $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+      Write-Host "CPU: $($cpu.Name)"
+      Write-Host "Cores: $($cpu.NumberOfCores)"
+      Write-Host "Logical Processors: $($cpu.NumberOfLogicalProcessors)"
+      
+      $memory = Get-CimInstance Win32_ComputerSystem
+      $totalMemGB = [math]::Round($memory.TotalPhysicalMemory / 1GB, 2)
+      Write-Host "Total Memory: ${totalMemGB}GB"
+      
+      $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+      $diskSizeGB = [math]::Round($disk.Size / 1GB, 2)
+      $diskFreeGB = [math]::Round($disk.FreeSpace / 1GB, 2)
+      Write-Host "C: Drive - Size: ${diskSizeGB}GB, Free: ${diskFreeGB}GB"
+      
+      Write-Host ""
+      Write-Host "Network Configuration:"
+      Write-Host "-".PadRight(40, "-")
+      Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like "Ethernet*" } | ForEach-Object {
+          Write-Host "Interface: $($_.InterfaceAlias)"
+          Write-Host "IP Address: $($_.IPAddress)"
+      }
+      
+      Write-Host ""
+      Write-Host "Test execution on this specific node completed!"
+      
+      exit 0
+  
+  workingDir: "C:\\Windows\\Temp"
+  timeout: "5m"
+  priority: 70
+  
+  retryPolicy:
+    maxRetries: 1
+    backoffStrategy: fixed
+

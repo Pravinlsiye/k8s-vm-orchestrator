@@ -1,0 +1,76 @@
+{
+  "name": "build-test-deploy",
+  "description": "Multi-stage workflow: build, test, deploy",
+  "variables": {
+    "appName": "MyApp",
+    "version": "1.0.0",
+    "buildDir": "C:\\Builds"
+  },
+  "environment": [
+    { "name": "BUILD_TYPE", "value": "Release" }
+  ],
+  "vmSelector": {
+    "os": "windows"
+  },
+  "stages": [
+    {
+      "name": "build",
+      "displayName": "Build application",
+      "steps": [
+        {
+          "task": "PowerShell",
+          "inputs": {
+            "script": [
+              "Write-Host \"Building $(variables.appName) v$(variables.version) ($env:BUILD_TYPE)\"",
+              "$dir = '$(variables.buildDir)\\$(variables.appName)'",
+              "New-Item -ItemType Directory -Path $dir -Force | Out-Null",
+              "\"build artifact for $(variables.appName) v$(variables.version)\" | Out-File \"$dir\\artifact.txt\" -Force",
+              "Write-Host \"Build complete -> $dir\\artifact.txt\""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "test",
+      "displayName": "Run tests",
+      "dependsOn": ["build"],
+      "steps": [
+        {
+          "task": "PowerShell",
+          "inputs": {
+            "script": [
+              "$artifact = '$(variables.buildDir)\\$(variables.appName)\\artifact.txt'",
+              "if (-not (Test-Path $artifact)) { throw 'build artifact missing' }",
+              "Write-Host 'Tests: 10 passed, 0 failed'"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "deploy",
+      "displayName": "Deploy",
+      "dependsOn": ["test"],
+      "steps": [
+        {
+          "task": "PowerShell",
+          "inputs": {
+            "script": [
+              "Write-Host \"Deploying $(variables.appName) v$(variables.version)\"",
+              "Write-Host 'Deployment complete'"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "finally": {
+    "steps": [
+      {
+        "task": "PowerShell",
+        "inputs": { "script": "Write-Host 'workflow finished'" }
+      }
+    ]
+  }
+}

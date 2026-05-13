@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>VMJobOrchestrator</RootNamespace>
+    <AssemblyName>VMJobOrchestrator</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <!-- <RuntimeIdentifier>linux-x64</RuntimeIdentifier> -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kubernetes client -->
+    <PackageReference Include="KubernetesClient" Version="12.0.16" />
+    
+    <!-- Azure Storage -->
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.19.1" />
+    
+    <!-- PowerShell remoting -->
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.0" />
+    <PackageReference Include="System.Management.Automation" Version="7.4.0" />
+    
+    <!-- Hosting and DI -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    
+    <!-- JSON -->
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    
+    
+    <!-- Connection pooling and channels -->
+    <PackageReference Include="System.Threading.Channels" Version="8.0.0" />
+    
+    <!-- Prometheus client for metrics -->
+    <PackageReference Include="prometheus-net" Version="8.2.0" />
+  </ItemGroup>
+
+</Project>

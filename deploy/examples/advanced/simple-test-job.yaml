@@ -1,0 +1,15 @@
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: simple-test-job
+  labels:
+    app: test
+spec:
+  vmSelector:
+    os: windows
+  command: "powershell.exe"
+  args:
+    - "-Command"
+    - "Write-Host 'Hello from VMJob!'; Write-Host 'Running on VM: ' $env:COMPUTERNAME; Write-Host 'Current time: ' (Get-Date); Write-Host 'Test completed successfully!'; exit 0"
+  timeout: "5m"
+  priority: 50

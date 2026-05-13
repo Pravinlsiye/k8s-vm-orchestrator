@@ -1,0 +1,21 @@
+# Exclude build outputs
+bin/
+obj/
+
+# Exclude test projects
+Tests/
+*.Tests/
+
+# Exclude local development files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Exclude git files
+.git/
+.gitignore
+
+# Exclude documentation
+*.md
+README.md

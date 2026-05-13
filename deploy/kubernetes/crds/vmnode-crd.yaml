@@ -1,0 +1,174 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: vmnodes.orchestrator.vmjobs.io
+spec:
+  group: orchestrator.vmjobs.io
+  scope: Cluster
+  names:
+    plural: vmnodes
+    singular: vmnode
+    kind: VMNode
+    shortNames:
+      - vmn
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - privateIP
+                - os
+              properties:
+                privateIP:
+                  type: string
+                  description: "Private IP address of the VM"
+                publicIP:
+                  type: string
+                  description: "Public IP address of the VM (if available)"
+                os:
+                  type: string
+                  description: "Operating system"
+                  enum: ["windows", "linux"]
+                osVersion:
+                  type: string
+                  description: "OS version (e.g., 2022, ubuntu-22.04)"
+                architecture:
+                  type: string
+                  description: "CPU architecture"
+                  default: "amd64"
+                tags:
+                  type: object
+                  description: "VM capabilities and metadata"
+                  additionalProperties:
+                    type: string
+                resources:
+                  type: object
+                  description: "VM resource capacity"
+                  properties:
+                    cpu:
+                      type: string
+                      description: "Number of CPU cores"
+                    memory:
+                      type: string
+                      description: "Memory capacity (e.g., 16Gi)"
+                    disk:
+                      type: string
+                      description: "Disk capacity (e.g., 128Gi)"
+                    gpu:
+                      type: string
+                      description: "GPU type (if available)"
+                winrmConfig:
+                  type: object
+                  description: "WinRM connection configuration"
+                  properties:
+                    port:
+                      type: integer
+                      default: 5985
+                    protocol:
+                      type: string
+                      enum: ["http", "https"]
+                      default: "http"
+                    username:
+                      type: string
+                    passwordSecret:
+                      type: string
+                      description: "Name of K8s secret containing password"
+                maxConcurrentJobs:
+                  type: integer
+                  description: "Maximum concurrent jobs this node can handle"
+                  default: 1
+                  minimum: 1
+                reuseLimit:
+                  type: integer
+                  description: "Maximum number of jobs before VM cleanup/reboot"
+                  default: 10
+                  minimum: 1
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  description: "Current phase of the VM node"
+                  enum:
+                    - Ready
+                    - Busy
+                    - Draining
+                    - Unhealthy
+                    - Offline
+                currentJobs:
+                  type: array
+                  description: "Currently running jobs"
+                  items:
+                    type: string
+                jobsRunning:
+                  type: integer
+                  description: "Number of currently running jobs"
+                  default: 0
+                jobsCompleted:
+                  type: integer
+                  description: "Total number of jobs completed"
+                  default: 0
+                lastHeartbeat:
+                  type: string
+                  format: date-time
+                  description: "Last heartbeat timestamp"
+                conditions:
+                  type: array
+                  description: "Node health conditions"
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        description: "Condition type (Ready, DiskPressure, MemoryPressure)"
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                registrationTime:
+                  type: string
+                  format: date-time
+                  description: "When the node was first registered"
+                lastJobCompletionTime:
+                  type: string
+                  format: date-time
+                  description: "When the last job completed"
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          description: Current status of the VM node
+          jsonPath: .status.phase
+        - name: OS
+          type: string
+          description: Operating system
+          jsonPath: .spec.os
+        - name: Private-IP
+          type: string
+          description: Private IP address
+          jsonPath: .spec.privateIP
+        - name: Jobs-Running
+          type: integer
+          description: Number of running jobs
+          jsonPath: .status.jobsRunning
+        - name: Jobs-Completed
+          type: integer
+          description: Total jobs completed
+          jsonPath: .status.jobsCompleted
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+

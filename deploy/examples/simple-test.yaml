@@ -1,0 +1,15 @@
+apiVersion: orchestrator.vmjobs.io/v1
+kind: VMJob
+metadata:
+  name: simple-test
+  namespace: default
+spec:
+  vmSelector:
+    os: windows
+  command: powershell.exe
+  args:
+    - "-Command"
+    - "Write-Host 'Hello from Windows VM'; Get-Date"
+  workingDir: "C:\\"
+  timeout: "2m"
+  priority: 100
