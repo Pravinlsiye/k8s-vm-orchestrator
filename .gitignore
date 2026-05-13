@@ -64,3 +64,11 @@ ehthumbs.db
 .vscode/
 *.swp
 *~
+
+# Web (SolidJS landing page)
+web/node_modules/
+web/dist/
+web/.vite/
+web/*.log
+web/.env*
+!web/.env.example
