@@ -703,7 +703,10 @@ namespace VMJobOrchestrator
                 {
                     // Preserve existing start time
                     statusObj["startTime"] = startTimeStr;
-                    startTime = DateTime.Parse(startTimeStr);
+                    // RoundtripKind keeps UTC strings as Kind=Utc; default Parse converts to Local
+                    // which produces wrong durations when the host timezone is not UTC.
+                    startTime = DateTime.Parse(startTimeStr, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind);
                 }
 
                 if (phase == "Completed" || phase == "Failed")

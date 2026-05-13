@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using k8s;
+using k8s.Autorest;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using VMJobOrchestrator;
 using Xunit;
 
@@ -14,7 +17,12 @@ namespace VMJobOrchestrator.Tests
 {
     public class DurationTrackingTests
     {
+        // K8s client v12 uses extension methods for the friendly API (GetNamespacedCustomObjectAsync etc.).
+        // Moq cannot intercept extension methods, so we mock the underlying *WithHttpMessagesAsync methods
+        // that the extensions delegate to.
+
         private readonly Mock<IKubernetes> _mockKubernetesClient;
+        private readonly Mock<ICustomObjectsOperations> _mockCustomObjects;
         private readonly Mock<ILogger<KubernetesStyleController>> _mockLogger;
         private readonly Mock<IVMExecutor> _mockVMExecutor;
         private readonly KubernetesStyleController _controller;
@@ -22,14 +30,55 @@ namespace VMJobOrchestrator.Tests
         public DurationTrackingTests()
         {
             _mockKubernetesClient = new Mock<IKubernetes>();
+            _mockCustomObjects = new Mock<ICustomObjectsOperations>();
+            _mockKubernetesClient.Setup(x => x.CustomObjects).Returns(_mockCustomObjects.Object);
+
             _mockLogger = new Mock<ILogger<KubernetesStyleController>>();
             _mockVMExecutor = new Mock<IVMExecutor>();
 
-            // Setup mock for CustomObjects property
-            var mockCustomObjects = new Mock<ICustomObjectsOperations>();
-            _mockKubernetesClient.Setup(x => x.CustomObjects).Returns(mockCustomObjects.Object);
-
             _controller = new KubernetesStyleController(_mockKubernetesClient.Object, _mockLogger.Object, _mockVMExecutor.Object);
+        }
+
+        // Keep ISO timestamps as strings (don't let JSON.NET auto-convert to DateTime).
+        private static readonly JsonSerializerSettings JsonNoDateParse = new()
+        {
+            DateParseHandling = DateParseHandling.None
+        };
+
+        private static dynamic ParsePatch(string content) =>
+            JsonConvert.DeserializeObject<JObject>(content, JsonNoDateParse)!;
+
+        // Use JObject for the mocked Body because the controller does dynamic
+        // member access (currentJob.status.startTime) and anonymous types defined
+        // in this test assembly are internal — DLR can't access them from the
+        // controller assembly. JObject is public and DLR-friendly.
+        private void SetupGet(string jobName, JObject body)
+        {
+            _mockCustomObjects.Setup(x => x.GetNamespacedCustomObjectWithHttpMessagesAsync(
+                    "orchestrator.vmjobs.io", "v1", "default", "vmjobs", jobName,
+                    It.IsAny<IReadOnlyDictionary<string, IReadOnlyList<string>>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new HttpOperationResponse<object> { Body = body });
+        }
+
+        private void SetupPatch(string jobName, Action<string> onPatch)
+        {
+            _mockCustomObjects.Setup(x => x.PatchNamespacedCustomObjectStatusWithHttpMessagesAsync(
+                    It.IsAny<object>(),
+                    "orchestrator.vmjobs.io", "v1", "default", "vmjobs", jobName,
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<bool?>(),
+                    It.IsAny<IReadOnlyDictionary<string, IReadOnlyList<string>>>(),
+                    It.IsAny<CancellationToken>()))
+                .Callback<object, string, string, string, string, string, string, string, bool?,
+                    IReadOnlyDictionary<string, IReadOnlyList<string>>, CancellationToken>(
+                    (body, _, _, _, _, _, _, _, _, _, _) =>
+                    {
+                        var patch = (V1Patch)body;
+                        onPatch((string)patch.Content);
+                    })
+                .ReturnsAsync(new HttpOperationResponse<object> { Body = new object() });
         }
 
         [Theory]
@@ -42,106 +91,57 @@ namespace VMJobOrchestrator.Tests
         [InlineData(93665, "1d2h1m")]
         public void FormatDuration_ShouldFormatCorrectly(int totalSeconds, string expected)
         {
-            // Arrange
             var duration = TimeSpan.FromSeconds(totalSeconds);
 
-            // Act - We'll use reflection to test the private method
-            var formatMethod = typeof(KubernetesStyleController).GetMethod("FormatDuration", 
+            var formatMethod = typeof(KubernetesStyleController).GetMethod("FormatDuration",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var result = formatMethod?.Invoke(_controller, new object[] { duration }) as string;
 
-            // Assert
             result.Should().Be(expected);
         }
 
         [Fact]
         public async Task UpdateJobStatus_Running_ShouldSetStartTime()
         {
-            // Arrange
             var jobName = "test-job";
-            var phase = "Running";
-            var assignedVM = "vm-1";
-            var capturedPatch = "";
+            string capturedPatch = "";
 
-            // Mock the current job (no existing startTime)
-            var currentJob = new
-            {
-                status = new { }
-            };
+            SetupGet(jobName, new JObject { ["status"] = new JObject() });
+            SetupPatch(jobName, p => capturedPatch = p);
 
-            _mockKubernetesClient.Setup(x => x.CustomObjects.GetNamespacedCustomObjectAsync(
-                "orchestrator.vmjobs.io", "v1", "default", 
-                "vmjobs", jobName))
-                .ReturnsAsync(currentJob);
-
-            _mockKubernetesClient.Setup(x => x.CustomObjects.PatchNamespacedCustomObjectStatusAsync(
-                It.IsAny<V1Patch>(),
-                "orchestrator.vmjobs.io", "v1", "default", 
-                jobName, "vmjobs"))
-                .Callback<V1Patch, string, string, string, string, string>((patch, group, version, ns, name, plural) =>
-                {
-                    capturedPatch = patch.Content;
-                })
-                .ReturnsAsync(new object());
-
-            // Act - Use reflection to call private method
             var updateMethod = typeof(KubernetesStyleController).GetMethod("UpdateJobStatusAsync",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            await (Task)updateMethod.Invoke(_controller, new object[] { jobName, phase, null, assignedVM, 0 });
+            await (Task)updateMethod!.Invoke(_controller, new object?[] { jobName, "Running", null, "vm-1", 0 })!;
 
-            // Assert
             capturedPatch.Should().NotBeNullOrEmpty();
-            dynamic patchObject = JsonConvert.DeserializeObject(capturedPatch);
+            dynamic patchObject = ParsePatch(capturedPatch);
             ((string)patchObject.status.phase).Should().Be("Running");
             ((string)patchObject.status.assignedVM).Should().Be("vm-1");
             ((string)patchObject.status.startTime).Should().NotBeNullOrEmpty();
-            
-            // Verify startTime is a valid ISO8601 timestamp
-            DateTime.Parse((string)patchObject.status.startTime).Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+            DateTime.Parse((string)patchObject.status.startTime, null, System.Globalization.DateTimeStyles.RoundtripKind)
+                .Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
         }
 
         [Fact]
         public async Task UpdateJobStatus_Completed_ShouldCalculateDuration()
         {
-            // Arrange
             var jobName = "test-job";
-            var phase = "Completed";
-            var assignedVM = "vm-1";
             var startTime = DateTime.UtcNow.AddMinutes(-5);
-            var capturedPatch = "";
+            string capturedPatch = "";
 
-            // Mock the current job with existing startTime
-            var currentJob = new
+            SetupGet(jobName, new JObject
             {
-                status = new
-                {
-                    startTime = startTime.ToString("o")
-                }
-            };
+                ["status"] = new JObject { ["startTime"] = startTime.ToString("o") }
+            });
+            SetupPatch(jobName, p => capturedPatch = p);
 
-            _mockKubernetesClient.Setup(x => x.CustomObjects.GetNamespacedCustomObjectAsync(
-                "orchestrator.vmjobs.io", "v1", "default",
-                "vmjobs", jobName))
-                .ReturnsAsync(currentJob);
-
-            _mockKubernetesClient.Setup(x => x.CustomObjects.PatchNamespacedCustomObjectStatusAsync(
-                It.IsAny<V1Patch>(),
-                "orchestrator.vmjobs.io", "v1", "default",
-                jobName, "vmjobs"))
-                .Callback<V1Patch, string, string, string, string, string>((patch, group, version, ns, name, plural) =>
-                {
-                    capturedPatch = patch.Content;
-                })
-                .ReturnsAsync(new object());
-
-            // Act
             var updateMethod = typeof(KubernetesStyleController).GetMethod("UpdateJobStatusAsync",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            await (Task)updateMethod.Invoke(_controller, new object[] { jobName, phase, "Job completed successfully", assignedVM, 0 });
+            await (Task)updateMethod!.Invoke(_controller, new object?[] { jobName, "Completed", "Job completed successfully", "vm-1", 0 })!;
 
-            // Assert
             capturedPatch.Should().NotBeNullOrEmpty();
-            dynamic patchObject = JsonConvert.DeserializeObject(capturedPatch);
+            dynamic patchObject = ParsePatch(capturedPatch);
             ((string)patchObject.status.phase).Should().Be("Completed");
             ((string)patchObject.status.completionTime).Should().NotBeNullOrEmpty();
             ((string)patchObject.status.duration).Should().Be("5m0s");
@@ -151,45 +151,22 @@ namespace VMJobOrchestrator.Tests
         [Fact]
         public async Task UpdateJobStatus_Failed_ShouldAlsoCalculateDuration()
         {
-            // Arrange
             var jobName = "test-job";
-            var phase = "Failed";
-            var assignedVM = "vm-1";
             var startTime = DateTime.UtcNow.AddSeconds(-45);
-            var capturedPatch = "";
+            string capturedPatch = "";
 
-            // Mock the current job with existing startTime
-            var currentJob = new
+            SetupGet(jobName, new JObject
             {
-                status = new
-                {
-                    startTime = startTime.ToString("o")
-                }
-            };
+                ["status"] = new JObject { ["startTime"] = startTime.ToString("o") }
+            });
+            SetupPatch(jobName, p => capturedPatch = p);
 
-            _mockKubernetesClient.Setup(x => x.CustomObjects.GetNamespacedCustomObjectAsync(
-                "orchestrator.vmjobs.io", "v1", "default",
-                "vmjobs", jobName))
-                .ReturnsAsync(currentJob);
-
-            _mockKubernetesClient.Setup(x => x.CustomObjects.PatchNamespacedCustomObjectStatusAsync(
-                It.IsAny<V1Patch>(),
-                "orchestrator.vmjobs.io", "v1", "default",
-                jobName, "vmjobs"))
-                .Callback<V1Patch, string, string, string, string, string>((patch, group, version, ns, name, plural) =>
-                {
-                    capturedPatch = patch.Content;
-                })
-                .ReturnsAsync(new object());
-
-            // Act
             var updateMethod = typeof(KubernetesStyleController).GetMethod("UpdateJobStatusAsync",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            await (Task)updateMethod.Invoke(_controller, new object[] { jobName, phase, "Job failed", assignedVM, -1 });
+            await (Task)updateMethod!.Invoke(_controller, new object?[] { jobName, "Failed", "Job failed", "vm-1", -1 })!;
 
-            // Assert
             capturedPatch.Should().NotBeNullOrEmpty();
-            dynamic patchObject = JsonConvert.DeserializeObject(capturedPatch);
+            dynamic patchObject = ParsePatch(capturedPatch);
             ((string)patchObject.status.phase).Should().Be("Failed");
             ((string)patchObject.status.completionTime).Should().NotBeNullOrEmpty();
             ((string)patchObject.status.duration).Should().Be("45s");
@@ -200,46 +177,22 @@ namespace VMJobOrchestrator.Tests
         [Fact]
         public async Task UpdateJobStatus_WithoutStartTime_ShouldNotCalculateDuration()
         {
-            // Arrange
             var jobName = "test-job";
-            var phase = "Completed";
-            var assignedVM = "vm-1";
-            var capturedPatch = "";
+            string capturedPatch = "";
 
-            // Mock the current job without startTime (edge case)
-            var currentJob = new
-            {
-                status = new { }
-            };
+            SetupGet(jobName, new JObject { ["status"] = new JObject() });
+            SetupPatch(jobName, p => capturedPatch = p);
 
-            _mockKubernetesClient.Setup(x => x.CustomObjects.GetNamespacedCustomObjectAsync(
-                "orchestrator.vmjobs.io", "v1", "default",
-                "vmjobs", jobName))
-                .ReturnsAsync(currentJob);
-
-            _mockKubernetesClient.Setup(x => x.CustomObjects.PatchNamespacedCustomObjectStatusAsync(
-                It.IsAny<V1Patch>(),
-                "orchestrator.vmjobs.io", "v1", "default",
-                jobName, "vmjobs"))
-                .Callback<V1Patch, string, string, string, string, string>((patch, group, version, ns, name, plural) =>
-                {
-                    capturedPatch = patch.Content;
-                })
-                .ReturnsAsync(new object());
-
-            // Act
             var updateMethod = typeof(KubernetesStyleController).GetMethod("UpdateJobStatusAsync",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            await (Task)updateMethod.Invoke(_controller, new object[] { jobName, phase, null, assignedVM, 0 });
+            await (Task)updateMethod!.Invoke(_controller, new object?[] { jobName, "Completed", null, "vm-1", 0 })!;
 
-            // Assert
             capturedPatch.Should().NotBeNullOrEmpty();
-            dynamic patchObject = JsonConvert.DeserializeObject(capturedPatch);
+            dynamic patchObject = ParsePatch(capturedPatch);
             ((string)patchObject.status.phase).Should().Be("Completed");
             ((string)patchObject.status.completionTime).Should().NotBeNullOrEmpty();
-            
-            // Duration should not be set without startTime
-            var statusObj = (Dictionary<string, object>)patchObject.status.ToObject<Dictionary<string, object>>();
+
+            var statusObj = (JObject)patchObject.status;
             statusObj.Should().NotContainKey("duration");
             statusObj.Should().NotContainKey("durationSeconds");
         }
