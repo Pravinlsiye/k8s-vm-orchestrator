@@ -48,7 +48,7 @@ const CodeRow: Component<{ code: string }> = (props) => {
   }
   return (
     <div class="relative mt-3">
-      <pre class="overflow-x-auto rounded-lg border border-white/10 bg-[#0c0c14]/80 p-4 font-mono text-[12.5px] leading-relaxed text-slate-200">
+      <pre class="no-scrollbar overflow-x-auto rounded-lg border border-white/10 bg-[#0c0c14]/80 p-4 font-mono text-[12.5px] leading-relaxed text-slate-200">
         {props.code}
       </pre>
       <button

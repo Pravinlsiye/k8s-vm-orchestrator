@@ -93,7 +93,7 @@ const Hero: Component = () => {
                 </div>
                 <span class="ml-2 font-mono text-xs text-slate-400">POST /api/vmjobs</span>
               </div>
-              <pre class="mt-3 overflow-x-auto font-mono text-[12.5px] leading-relaxed text-slate-200">
+              <pre class="no-scrollbar mt-3 overflow-x-auto font-mono text-[12.5px] leading-relaxed text-slate-200">
 {`{
   "name": "build-and-test",
   "vmSelector": { "os": "windows", "tags": { "role": "build" } },

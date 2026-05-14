@@ -15,6 +15,11 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  html::-webkit-scrollbar {
+    display: none;
   }
   body {
     background:
@@ -23,6 +28,11 @@
       radial-gradient(900px 600px at 110% 80%, rgba(244, 114, 182, 0.10), transparent 60%),
       var(--color-ink);
     min-height: 100vh;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  body::-webkit-scrollbar {
+    display: none;
   }
   ::selection {
     background: rgba(124, 92, 255, 0.35);
@@ -69,5 +79,17 @@
     background: transparent !important;
     padding: 1.25rem !important;
     overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .code-block pre::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
